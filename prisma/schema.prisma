@@ -1,0 +1,405 @@
+// ============================================================
+// PRISMA SCHEMA - Sistema de Gestión Superllanta
+// Mapea directamente el script SQL final de la BD
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =========================
+// ROLES Y USUARIOS
+// =========================
+
+model RolUsuario {
+  id_rol      Int       @id @default(autoincrement())
+  nombre      String    @unique @db.VarChar(50)
+  descripcion String?
+  usuarios    Usuario[]
+
+  @@map("roles_usuario")
+}
+
+model Usuario {
+  id_usuario     Int       @id @default(autoincrement())
+  id_rol         Int
+  nombre         String    @db.VarChar(100)
+  apellido       String?   @db.VarChar(100)
+  correo         String    @unique @db.VarChar(150)
+  contrasena     String    @db.VarChar(255)
+  estado         Boolean   @default(true)
+  fecha_creacion DateTime  @default(now())
+
+  rol                    RolUsuario              @relation(fields: [id_rol], references: [id_rol])
+  movimientos_inventario MovimientoInventario[]
+  historial_neumatico    HistorialNeumatico[]
+  parchados              Parchado[]
+  vulcanizados           Vulcanizado[]
+  reencauches            Reencauche[]
+  reparaciones           Reparacion[]
+  ventas                 Venta[]
+  alertas                Alerta[]
+  logs                   Log[]
+
+  @@map("usuarios")
+}
+
+// =========================
+// CLIENTES
+// =========================
+
+model Cliente {
+  id_cliente     Int       @id @default(autoincrement())
+  nombre         String    @db.VarChar(100)
+  apellido       String?   @db.VarChar(100)
+  telefono       String?   @db.VarChar(20)
+  cedula         String?   @unique @db.VarChar(20)
+  direccion      String?   @db.VarChar(255)
+  fecha_registro DateTime  @default(now())
+
+  neumaticos   Neumatico[]
+  vulcanizados Vulcanizado[]
+  reencauches  Reencauche[]
+  reparaciones Reparacion[]
+  ventas       Venta[]
+
+  @@map("clientes")
+}
+
+// =========================
+// CATEGORÍAS Y PRODUCTOS
+// =========================
+
+model Categoria {
+  id_categoria Int        @id @default(autoincrement())
+  nombre       String     @unique @db.VarChar(50)
+  productos    Producto[]
+
+  @@map("categorias")
+}
+
+model Producto {
+  id_producto   Int      @id @default(autoincrement())
+  id_categoria  Int?
+  nombre        String   @db.VarChar(150)
+  descripcion   String?
+  unidad_medida String?  @default("unidad") @db.VarChar(30)
+  stock         Int      @default(0)
+  stock_minimo  Int      @default(0)
+  precio_compra Decimal? @db.Decimal(10, 2)
+  precio_venta  Decimal? @db.Decimal(10, 2)
+  estado        Boolean  @default(true)
+
+  categoria              Categoria?             @relation(fields: [id_categoria], references: [id_categoria])
+  movimientos_inventario MovimientoInventario[]
+  uso_productos          UsoProductoServicio[]
+  alertas                Alerta[]
+
+  @@map("productos")
+}
+
+// =========================
+// MOVIMIENTOS DE INVENTARIO
+// =========================
+
+model MovimientoInventario {
+  id_movimiento Int      @id @default(autoincrement())
+  id_producto   Int
+  id_usuario    Int?
+  tipo          String   @db.VarChar(20)
+  cantidad      Int
+  motivo        String?  @db.VarChar(150)
+  fecha         DateTime @default(now())
+
+  producto Producto @relation(fields: [id_producto], references: [id_producto])
+  usuario  Usuario? @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@map("movimientos_inventario")
+}
+
+// =========================
+// NEUMÁTICOS
+// =========================
+
+model Neumatico {
+  id_neumatico   Int      @id @default(autoincrement())
+  id_cliente     Int?
+  codigo_qr      String?  @unique @db.VarChar(100)
+  marca          String?  @db.VarChar(100)
+  medida         String?  @db.VarChar(50)
+  dot            String?  @db.VarChar(50)
+  tipo_registro  String   @db.VarChar(10)
+  estado         String?  @default("activo") @db.VarChar(30)
+  precio         Decimal? @db.Decimal(10, 2)
+  fecha_registro DateTime @default(now())
+
+  cliente                  Cliente?              @relation(fields: [id_cliente], references: [id_cliente])
+  historial                HistorialNeumatico[]
+  parchados                Parchado[]
+  detalle_vulcanizado      DetalleVulcanizado[]
+  detalle_reencauche       DetalleReencauche[]
+  reparaciones             Reparacion[]
+  detalle_cambio_montado   DetalleCambioNeumatico[] @relation("NeumaticMontado")
+  detalle_venta            DetalleVenta[]
+
+  @@map("neumaticos")
+}
+
+// =========================
+// HISTORIAL DEL NEUMÁTICO
+// =========================
+
+model HistorialNeumatico {
+  id_historial  Int      @id @default(autoincrement())
+  id_neumatico  Int
+  id_usuario    Int?
+  tipo_servicio String?  @db.VarChar(50)
+  descripcion   String?
+  fecha         DateTime @default(now())
+
+  neumatico Neumatico @relation(fields: [id_neumatico], references: [id_neumatico])
+  usuario   Usuario?  @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@map("historial_neumatico")
+}
+
+// =========================
+// PARCHADO
+// =========================
+
+model Parchado {
+  id_parchado  Int      @id @default(autoincrement())
+  id_neumatico Int
+  id_usuario   Int?
+  tipo_parche  String?  @db.VarChar(50)
+  descripcion  String?
+  costo        Decimal? @db.Decimal(10, 2)
+  fecha        DateTime @default(now())
+
+  neumatico      Neumatico             @relation(fields: [id_neumatico], references: [id_neumatico])
+  usuario        Usuario?              @relation(fields: [id_usuario], references: [id_usuario])
+  uso_productos  UsoProductoServicio[]
+
+  @@map("parchados")
+}
+
+// =========================
+// VULCANIZADOS
+// =========================
+
+model Vulcanizado {
+  id_vulcanizado         Int      @id @default(autoincrement())
+  id_cliente             Int
+  id_usuario             Int?
+  fecha_ingreso          DateTime @default(now())
+  fecha_entrega_estimada DateTime? @db.Date
+  fecha_entrega_real     DateTime? @db.Date
+  abono                  Decimal  @default(0) @db.Decimal(10, 2)
+  saldo                  Decimal  @default(0) @db.Decimal(10, 2)
+  estado                 String   @default("pendiente") @db.VarChar(20)
+  observaciones          String?
+
+  cliente  Cliente              @relation(fields: [id_cliente], references: [id_cliente])
+  usuario  Usuario?             @relation(fields: [id_usuario], references: [id_usuario])
+  detalles DetalleVulcanizado[]
+
+  @@map("vulcanizados")
+}
+
+model DetalleVulcanizado {
+  id_detalle     Int      @id @default(autoincrement())
+  id_vulcanizado Int
+  id_neumatico   Int?
+  marca          String?  @db.VarChar(100)
+  medida         String?  @db.VarChar(50)
+  dot            String?  @db.VarChar(50)
+  deja_rin       Boolean  @default(false)
+  descripcion    String?
+  precio         Decimal? @db.Decimal(10, 2)
+
+  vulcanizado   Vulcanizado           @relation(fields: [id_vulcanizado], references: [id_vulcanizado])
+  neumatico     Neumatico?            @relation(fields: [id_neumatico], references: [id_neumatico])
+  uso_productos UsoProductoServicio[]
+
+  @@map("detalle_vulcanizado")
+}
+
+// =========================
+// REENCAUCHES
+// =========================
+
+model Reencauche {
+  id_reencauche          Int      @id @default(autoincrement())
+  id_cliente             Int
+  id_usuario             Int?
+  fecha_ingreso          DateTime @default(now())
+  fecha_entrega_estimada DateTime? @db.Date
+  fecha_entrega_real     DateTime? @db.Date
+  abono                  Decimal  @default(0) @db.Decimal(10, 2)
+  saldo                  Decimal  @default(0) @db.Decimal(10, 2)
+  estado                 String   @default("pendiente") @db.VarChar(20)
+  observaciones          String?
+
+  cliente  Cliente             @relation(fields: [id_cliente], references: [id_cliente])
+  usuario  Usuario?            @relation(fields: [id_usuario], references: [id_usuario])
+  detalles DetalleReencauche[]
+
+  @@map("reencauches")
+}
+
+model DetalleReencauche {
+  id_detalle       Int      @id @default(autoincrement())
+  id_reencauche    Int
+  id_neumatico     Int?
+  marca            String?  @db.VarChar(100)
+  medida           String?  @db.VarChar(50)
+  dot              String?  @db.VarChar(50)
+  tipo_reencauche  String?  @db.VarChar(50)
+  estado_neumatico String?  @db.VarChar(50)
+  precio           Decimal? @db.Decimal(10, 2)
+
+  reencauche    Reencauche            @relation(fields: [id_reencauche], references: [id_reencauche])
+  neumatico     Neumatico?            @relation(fields: [id_neumatico], references: [id_neumatico])
+  uso_productos UsoProductoServicio[]
+
+  @@map("detalle_reencauche")
+}
+
+// =========================
+// REPARACIONES Y CAMBIOS
+// =========================
+
+model Reparacion {
+  id_reparacion    Int      @id @default(autoincrement())
+  id_cliente       Int
+  id_usuario       Int?
+  id_neumatico     Int?
+  tipo_reparacion  String   @db.VarChar(20)
+  marca_neumatico  String?  @db.VarChar(100)
+  medida_neumatico String?  @db.VarChar(50)
+  dot_neumatico    String?  @db.VarChar(50)
+  descripcion      String?
+  costo            Decimal  @default(0) @db.Decimal(10, 2)
+  observaciones    String?
+  fecha            DateTime @default(now())
+
+  cliente       Cliente                  @relation(fields: [id_cliente], references: [id_cliente])
+  usuario       Usuario?                 @relation(fields: [id_usuario], references: [id_usuario])
+  neumatico     Neumatico?               @relation(fields: [id_neumatico], references: [id_neumatico])
+  detalles_cambio DetalleCambioNeumatico[]
+  uso_productos   UsoProductoServicio[]
+
+  @@map("reparaciones")
+}
+
+model DetalleCambioNeumatico {
+  id_detalle           Int      @id @default(autoincrement())
+  id_reparacion        Int
+  marca_desmontado     String?  @db.VarChar(100)
+  medida_desmontada    String?  @db.VarChar(50)
+  dot_desmontado       String?  @db.VarChar(50)
+  id_neumatico_montado Int?
+  marca_montado        String?  @db.VarChar(100)
+  medida_montada       String?  @db.VarChar(50)
+  dot_montado          String?  @db.VarChar(50)
+  es_neumatico_propio  Boolean  @default(true)
+  precio_mano_obra     Decimal  @default(0) @db.Decimal(10, 2)
+
+  reparacion       Reparacion @relation(fields: [id_reparacion], references: [id_reparacion])
+  neumatico_montado Neumatico? @relation("NeumaticMontado", fields: [id_neumatico_montado], references: [id_neumatico])
+
+  @@map("detalle_cambio_neumatico")
+}
+
+// =========================
+// USO DE PRODUCTOS EN SERVICIOS
+// =========================
+
+model UsoProductoServicio {
+  id             Int  @id @default(autoincrement())
+  id_producto    Int
+  cantidad       Int
+  id_parchado    Int?
+  id_vulcanizado Int?
+  id_reencauche  Int?
+  id_reparacion  Int?
+
+  producto    Producto            @relation(fields: [id_producto], references: [id_producto])
+  parchado    Parchado?           @relation(fields: [id_parchado], references: [id_parchado])
+  vulcanizado DetalleVulcanizado? @relation(fields: [id_vulcanizado], references: [id_detalle])
+  reencauche  DetalleReencauche?  @relation(fields: [id_reencauche], references: [id_detalle])
+  reparacion  Reparacion?         @relation(fields: [id_reparacion], references: [id_reparacion])
+
+  @@map("uso_productos_servicio")
+}
+
+// =========================
+// VENTAS DE NEUMÁTICOS
+// =========================
+
+model Venta {
+  id_venta   Int      @id @default(autoincrement())
+  id_cliente Int?
+  id_usuario Int?
+  fecha      DateTime @default(now())
+  total      Decimal? @db.Decimal(10, 2)
+
+  cliente  Cliente?      @relation(fields: [id_cliente], references: [id_cliente])
+  usuario  Usuario?      @relation(fields: [id_usuario], references: [id_usuario])
+  detalles DetalleVenta[]
+
+  @@map("ventas")
+}
+
+model DetalleVenta {
+  id_detalle   Int      @id @default(autoincrement())
+  id_venta     Int
+  id_neumatico Int
+  precio       Decimal? @db.Decimal(10, 2)
+
+  venta     Venta     @relation(fields: [id_venta], references: [id_venta])
+  neumatico Neumatico @relation(fields: [id_neumatico], references: [id_neumatico])
+
+  @@map("detalle_venta")
+}
+
+// =========================
+// ALERTAS DE STOCK
+// =========================
+
+model Alerta {
+  id_alerta   Int      @id @default(autoincrement())
+  id_producto Int?
+  id_usuario  Int?
+  tipo        String?  @default("stock_minimo") @db.VarChar(50)
+  mensaje     String?
+  estado      String?  @default("nueva") @db.VarChar(20)
+  fecha       DateTime @default(now())
+
+  producto Producto? @relation(fields: [id_producto], references: [id_producto])
+  usuario  Usuario?  @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@map("alertas")
+}
+
+// =========================
+// LOGS DE AUDITORÍA
+// =========================
+
+model Log {
+  id_log      Int      @id @default(autoincrement())
+  id_usuario  Int?
+  accion      String
+  tabla       String?  @db.VarChar(100)
+  id_registro Int?
+  fecha       DateTime @default(now())
+
+  usuario Usuario? @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@map("logs")
+}
