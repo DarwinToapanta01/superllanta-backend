@@ -114,8 +114,11 @@ const cambiarEstado = async (req, res) => {
     }
 
     const data = { estado }
-    if (estado === 'entregado') data.fecha_entrega_real = new Date()
-
+    if (estado === 'entregado') {
+      const ahora = new Date()
+      const fechaEcuador = new Date(ahora.getTime() - (5 * 60 * 60 * 1000))
+      data.fecha_entrega_real = fechaEcuador
+    }
     const vulcanizado = await prisma.vulcanizado.update({
       where: { id_vulcanizado: id },
       data,
