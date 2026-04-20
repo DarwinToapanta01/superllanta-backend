@@ -151,8 +151,8 @@ const reparaciones = {
       const where = {}
       if (tipo) where.tipo_reparacion = tipo
       if (fecha) {
-        const inicio = new Date(fecha); inicio.setHours(0,0,0,0)
-        const fin = new Date(fecha); fin.setHours(23,59,59,999)
+        const inicio = new Date(fecha); inicio.setHours(0, 0, 0, 0)
+        const fin = new Date(fecha); fin.setHours(23, 59, 59, 999)
         where.fecha = { gte: inicio, lte: fin }
       }
       const lista = await prisma.reparacion.findMany({
@@ -315,11 +315,14 @@ const reencauches = {
     try {
       const id = parseInt(req.params.id)
       const { estado } = req.body
-      if (!['pendiente','en_proceso','listo','entregado'].includes(estado)) {
+      if (!['pendiente', 'en_proceso', 'listo', 'entregado'].includes(estado)) {
         return res.status(400).json({ error: 'Estado inválido' })
       }
       const data = { estado }
-      if (estado === 'entregado') data.fecha_entrega_real = new Date()
+      if (estado === 'entregado') {
+        const ahora = new Date()
+        data.fecha_entrega_real = new Date(ahora.getTime() - (5 * 60 * 60 * 1000))
+      }
       const reencauche = await prisma.reencauche.update({ where: { id_reencauche: id }, data })
       res.json(reencauche)
     } catch (err) {
