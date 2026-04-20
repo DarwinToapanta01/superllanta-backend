@@ -227,7 +227,15 @@ const reparaciones = {
       if (tipo_reparacion === 'cambio' && detalles_cambio) {
         for (const dc of detalles_cambio) {
           await prisma.detalleCambioNeumatico.create({
-            data: { id_reparacion: reparacion.id_reparacion, ...dc }
+            data: {
+              id_reparacion: reparacion.id_reparacion,
+              marca_desmontado: dc.marca_desmontado || 'N/A',
+              medida_desmontada: dc.medida_desmontada || 'N/A',
+              marca_montado: dc.marca_montado || 'N/A',
+              medida_montada: dc.medida_montada || 'N/A',
+              es_neumatico_propio: dc.es_neumatico_propio ?? true,
+              precio_mano_obra: dc.precio_mano_obra || 0,
+            }
           })
         }
       }

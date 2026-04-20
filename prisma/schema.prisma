@@ -307,6 +307,7 @@ model DetalleCambioNeumatico {
   marca_montado        String?  @db.VarChar(100)
   medida_montada       String?  @db.VarChar(50)
   dot_montado          String?  @db.VarChar(50)
+  cantidad_cambios     Int      @default(1)
   es_neumatico_propio  Boolean  @default(true)
   precio_mano_obra     Decimal  @default(0) @db.Decimal(10, 2)
 
