@@ -28,16 +28,6 @@ npm run db:seed
 npm run dev
 ```
 
-## Endpoints principales
-
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| POST | /api/auth/login | Login |
-| GET | /api/qr/:codigo | Hoja de vida QR (público) |
-| GET | /api/productos | Listar insumos |
-| GET | /api/vulcanizados | Listar vulcanizados |
-| POST | /api/neumaticos/taller | Registrar neumático + QR |
-
 ## Credenciales por defecto
 - Email: admin@superllanta.com
 - Password: admin123

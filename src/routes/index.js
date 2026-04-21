@@ -1,5 +1,6 @@
 const express = require('express')
 const router = express.Router()
+const prisma = require('../utils/prisma')
 
 const { login, perfil } = require('../controllers/authController')
 const productosCtrl = require('../controllers/productosController')
@@ -34,8 +35,23 @@ router.post('/neumaticos/venta', verificarToken, soloAdmin, neumaticosCtrl.crear
 
 // ─── CLIENTES ─────────────────────────────────────────────────
 router.get('/clientes', verificarToken, clientes.listar)
-router.get('/clientes/:id', verificarToken, clientes.obtener)
 router.post('/clientes', verificarToken, clientes.crear)
+router.get('/clientes/:id/neumaticos', verificarToken, async (req, res) => {
+    try {
+        const neumaticos = await prisma.neumatico.findMany({
+            where: {
+                id_cliente: parseInt(req.params.id),
+                tipo_registro: 'taller'
+            },
+            orderBy: { fecha_registro: 'desc' }
+        })
+        res.json(neumaticos)
+    } catch (err) {
+        res.status(500).json({ error: 'Error al obtener neumáticos del cliente' })
+    }
+})
+
+router.get('/clientes/:id', verificarToken, clientes.obtener)
 router.put('/clientes/:id', verificarToken, clientes.actualizar)
 
 // ─── VULCANIZADOS ─────────────────────────────────────────────
