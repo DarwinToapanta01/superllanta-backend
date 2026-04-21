@@ -76,11 +76,13 @@ const usuarios = {
     try {
       const lista = await prisma.usuario.findMany({
         include: { rol: true },
-        omit: { contrasena: true },
         orderBy: { nombre: 'asc' }
       })
-      res.json(lista)
+      // Eliminar contraseña manualmente
+      const resultado = lista.map(({ contrasena, ...u }) => u)
+      res.json(resultado)
     } catch (err) {
+      console.error('Error listar usuarios:', err)
       res.status(500).json({ error: 'Error al obtener usuarios' })
     }
   },
@@ -94,10 +96,10 @@ const usuarios = {
       const hash = await bcrypt.hash(contrasena, 10)
       const usuario = await prisma.usuario.create({
         data: { nombre, apellido, correo, contrasena: hash, id_rol },
-        include: { rol: true },
-        omit: { contrasena: true }
+        include: { rol: true }
       })
-      res.status(201).json(usuario)
+      const { contrasena: _, ...resultado } = usuario
+      res.status(201).json(resultado)
     } catch (err) {
       if (err.code === 'P2002') return res.status(400).json({ error: 'El correo ya está registrado' })
       res.status(500).json({ error: 'Error al crear usuario' })
@@ -111,10 +113,12 @@ const usuarios = {
       const data = { nombre, apellido, correo, id_rol, estado }
       if (contrasena) data.contrasena = await bcrypt.hash(contrasena, 10)
       const usuario = await prisma.usuario.update({
-        where: { id_usuario: id }, data,
-        include: { rol: true }, omit: { contrasena: true }
+        where: { id_usuario: id },
+        data,
+        include: { rol: true }
       })
-      res.json(usuario)
+      const { contrasena: _, ...resultado } = usuario
+      res.json(resultado)
     } catch (err) {
       res.status(500).json({ error: 'Error al actualizar usuario' })
     }

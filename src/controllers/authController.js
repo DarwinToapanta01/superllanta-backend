@@ -73,10 +73,10 @@ const perfil = async (req, res) => {
   try {
     const usuario = await prisma.usuario.findUnique({
       where: { id_usuario: req.usuario.id },
-      include: { rol: true },
-      omit: { contrasena: true }
+      include: { rol: true }
     })
-    res.json(usuario)
+    const { contrasena, ...resultado } = usuario
+    res.json(resultado)
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' })
   }

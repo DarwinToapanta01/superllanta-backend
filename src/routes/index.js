@@ -79,4 +79,38 @@ router.post('/usuarios', verificarToken, soloAdmin, usuarios.crear)
 router.put('/usuarios/:id', verificarToken, soloAdmin, usuarios.actualizar)
 router.patch('/usuarios/:id/desactivar', verificarToken, soloAdmin, usuarios.desactivar)
 
+// ─── VENTAS ───────────────────────────────────────────────────
+router.post('/ventas', verificarToken, async (req, res) => {
+    try {
+        const { id_cliente, id_neumatico, precio } = req.body
+
+        const venta = await prisma.venta.create({
+            data: {
+                id_cliente: id_cliente || null,
+                id_usuario: req.usuario.id,
+                total: precio,
+                detalles: {
+                    create: [{ id_neumatico, precio }]
+                }
+            },
+            include: { detalles: true }
+        })
+
+        // Marcar neumático como vendido
+        await prisma.neumatico.update({
+            where: { id_neumatico },
+            data: { estado: 'vendido' }
+        })
+
+        await prisma.log.create({
+            data: { id_usuario: req.usuario.id, accion: 'VENTA_NEUMATICO', tabla: 'ventas', id_registro: venta.id_venta }
+        })
+
+        res.status(201).json(venta)
+    } catch (err) {
+        console.error(err)
+        res.status(500).json({ error: 'Error al registrar venta' })
+    }
+})
+
 module.exports = router
