@@ -198,21 +198,63 @@ const reparaciones = {
       if (!id_cliente) return res.status(400).json({ error: 'El cliente es requerido' })
       if (!['arreglo', 'cambio'].includes(tipo_reparacion)) return res.status(400).json({ error: 'Tipo inválido' })
 
+      let id_neumatico_final = id_neumatico || null
+      let qr_generado = null
+
+      // Si es arreglo, no tiene id_neumatico pero sí marca y medida → crear neumático con QR
+      if (tipo_reparacion === 'arreglo' && !id_neumatico_final && marca_neumatico && medida_neumatico) {
+        const QRCode = require('qrcode')
+        const año = new Date().getFullYear()
+        const aleatorio = Math.floor(Math.random() * 90000) + 10000
+        const codigo_qr = `SL-${año}-${aleatorio}`
+
+        const qrImageBase64 = await QRCode.toDataURL(
+          `${process.env.FRONTEND_URL}/qr/${codigo_qr}`,
+          { width: 300, margin: 2, color: { dark: '#1C3F6E', light: '#FFFFFF' } }
+        )
+
+        const neumatico = await prisma.neumatico.create({
+          data: {
+            id_cliente,
+            codigo_qr,
+            marca: marca_neumatico,
+            medida: medida_neumatico,
+            dot: dot_neumatico || null,
+            tipo_registro: 'taller',
+            estado: 'activo'
+          }
+        })
+
+        id_neumatico_final = neumatico.id_neumatico
+        qr_generado = {
+          codigo_qr,
+          qr_imagen: qrImageBase64,
+          marca: marca_neumatico,
+          medida: medida_neumatico
+        }
+      }
+
       const reparacion = await prisma.reparacion.create({
         data: {
-          id_cliente, id_usuario: req.usuario.id, id_neumatico: id_neumatico || null,
-          tipo_reparacion, marca_neumatico, medida_neumatico, dot_neumatico,
-          descripcion, costo: costo || 0, observaciones
+          id_cliente,
+          id_usuario: req.usuario.id,
+          id_neumatico: id_neumatico_final,
+          tipo_reparacion,
+          marca_neumatico,
+          medida_neumatico,
+          dot_neumatico,
+          descripcion,
+          costo: costo || 0,
+          observaciones
         }
       })
 
-      // Registrar insumos usados y descontar stock
+      // Registrar insumos y descontar stock
       if (insumos && insumos.length > 0) {
         for (const ins of insumos) {
           await prisma.usoProductoServicio.create({
             data: { id_producto: ins.id_producto, cantidad: ins.cantidad, id_reparacion: reparacion.id_reparacion }
           })
-          // Descontar stock
           await prisma.producto.update({
             where: { id_producto: ins.id_producto },
             data: { stock: { decrement: ins.cantidad } }
@@ -235,16 +277,17 @@ const reparaciones = {
               medida_montada: dc.medida_montada || 'N/A',
               es_neumatico_propio: dc.es_neumatico_propio ?? true,
               precio_mano_obra: dc.precio_mano_obra || 0,
+              cantidad_cambios: dc.cantidad_cambios || 1,
             }
           })
         }
       }
 
-      // Registrar en historial del neumático si tiene QR
-      if (id_neumatico) {
+      // Registrar en historial del neumático
+      if (id_neumatico_final) {
         await prisma.historialNeumatico.create({
           data: {
-            id_neumatico,
+            id_neumatico: id_neumatico_final,
             id_usuario: req.usuario.id,
             tipo_servicio: tipo_reparacion === 'arreglo' ? 'reparacion' : 'cambio',
             descripcion: descripcion || `${tipo_reparacion} registrado`
@@ -252,7 +295,7 @@ const reparaciones = {
         })
       }
 
-      res.status(201).json(reparacion)
+      res.status(201).json({ reparacion, qr_generado })
     } catch (err) {
       console.error(err)
       res.status(500).json({ error: 'Error al crear reparación' })
