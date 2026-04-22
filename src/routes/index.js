@@ -116,12 +116,13 @@ router.post('/ventas', verificarToken, async (req, res) => {
 module.exports = router
 
 // ─── REPORTES ─────────────────────────────────────────────────
-router.get('/reportes/servicios', verificarToken, async (req, res) => {
+
+router.get('/reportes/servicios', verificarToken, soloAdmin, async (req, res) => {
     try {
         const { desde, hasta, tipo } = req.query
         const filtroFecha = desde && hasta ? {
-            gte: new Date(desde),
-            lte: new Date(new Date(hasta).setHours(23, 59, 59, 999))
+            gte: new Date(desde + 'T00:00:00.000-05:00'),
+            lte: new Date(hasta + 'T23:59:59.999-05:00')
         } : undefined
 
         const [vulcanizados, reencauches, reparaciones] = await Promise.all([
@@ -166,21 +167,12 @@ router.get('/reportes/servicios', verificarToken, async (req, res) => {
     }
 })
 
-router.get('/reportes/insumos', verificarToken, async (req, res) => {
+router.get('/reportes/insumos', verificarToken, soloAdmin, async (req, res) => {
     try {
         const { desde, hasta } = req.query
-        const filtroFecha = desde && hasta ? {
-            gte: new Date(desde),
-            lte: new Date(new Date(hasta).setHours(23, 59, 59, 999))
-        } : undefined
 
+        // Traer todos los usos y filtrar en memoria por fecha del servicio asociado
         const usos = await prisma.usoProductoServicio.findMany({
-            where: filtroFecha ? {
-                OR: [
-                    { reparacion: { fecha: filtroFecha } },
-                    { parchado: { fecha: filtroFecha } },
-                ]
-            } : {},
             include: {
                 producto: { include: { categoria: true } },
                 reparacion: { select: { tipo_reparacion: true, fecha: true } },
@@ -188,9 +180,20 @@ router.get('/reportes/insumos', verificarToken, async (req, res) => {
             }
         })
 
+        // Filtrar por fecha si se proporcionan
+        const filtrados = usos.filter(uso => {
+            if (!desde || !hasta) return true
+            const fechaServicio = uso.reparacion?.fecha || uso.parchado?.fecha
+            if (!fechaServicio) return false
+            const fecha = new Date(fechaServicio)
+            const inicio = new Date(desde + 'T00:00:00.000-05:00')
+            const fin = new Date(hasta + 'T23:59:59.999-05:00')
+            return fecha >= inicio && fecha <= fin
+        })
+
         // Agrupar por producto
         const agrupado = {}
-        for (const uso of usos) {
+        for (const uso of filtrados) {
             const id = uso.id_producto
             if (!agrupado[id]) {
                 agrupado[id] = {
@@ -212,7 +215,7 @@ router.get('/reportes/insumos', verificarToken, async (req, res) => {
 
         res.json({
             insumos: Object.values(agrupado).sort((a, b) => b.total_cantidad - a.total_cantidad),
-            total_registros: usos.length
+            total_registros: filtrados.length
         })
     } catch (err) {
         console.error(err)
