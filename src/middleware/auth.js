@@ -1,37 +1,56 @@
 const jwt = require('jsonwebtoken')
+const prisma = require('../utils/prisma')
 
-// Verifica que el token JWT sea válido
-const verificarToken = (req, res, next) => {
-  const authHeader = req.headers['authorization']
-  const token = authHeader && authHeader.split(' ')[1] // Bearer TOKEN
-
-  if (!token) {
-    return res.status(401).json({ error: 'Token requerido' })
-  }
-
+const verificarToken = async (req, res, next) => {
   try {
+    const authHeader = req.headers.authorization
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Token requerido' })
+    }
+    const token = authHeader.split(' ')[1]
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
-    req.usuario = decoded
+    const usuario = await prisma.usuario.findUnique({
+      where: { id_usuario: decoded.id },
+      include: { rol: true }
+    })
+    if (!usuario || !usuario.estado) {
+      return res.status(401).json({ error: 'Usuario no autorizado' })
+    }
+    req.usuario = { id: usuario.id_usuario, rol: usuario.rol.nombre }
+
+    // ─── Verificar horario laboral para técnicos ───────────────
+    if (usuario.rol.nombre !== 'administrador') {
+      const ahora = new Date()
+      const horaEcuador = new Date(ahora.getTime() - (5 * 60 * 60 * 1000))
+      const dia = horaEcuador.getUTCDay()
+      const hora = horaEcuador.getUTCHours()
+      const minutos = horaEcuador.getUTCMinutes()
+      const horaDecimal = hora + minutos / 60
+
+      if (dia === 0 || horaDecimal < 7 || horaDecimal >= 6) {
+        return res.status(403).json({
+          error: 'Acceso restringido',
+          mensaje: dia === 0
+            ? 'El sistema no está disponible los domingos.'
+            : `Acceso permitido de 07:00 a 19:00. Hora actual: ${hora.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}`,
+          codigo: 'FUERA_HORARIO',
+          horario: 'Lunes a Sábado · 07:00 — 19:00'
+        })
+      }
+    }
+    // ──────────────────────────────────────────────────────────
+
     next()
   } catch (err) {
     return res.status(401).json({ error: 'Token inválido o expirado' })
   }
 }
 
-// Solo permite el acceso al administrador
 const soloAdmin = (req, res, next) => {
   if (req.usuario?.rol !== 'administrador') {
-    return res.status(403).json({ error: 'Acceso denegado. Solo administradores.' })
+    return res.status(403).json({ error: 'Solo administradores' })
   }
   next()
 }
 
-// Permite tanto administrador como técnico
-const autenticado = (req, res, next) => {
-  if (!req.usuario) {
-    return res.status(403).json({ error: 'Acceso denegado.' })
-  }
-  next()
-}
-
-module.exports = { verificarToken, soloAdmin, autenticado }
+module.exports = { verificarToken, soloAdmin }

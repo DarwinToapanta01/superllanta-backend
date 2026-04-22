@@ -1,6 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const prisma = require('../utils/prisma')
+const { verificarHorario } = require('../middleware/horario')
 
 const { login, perfil } = require('../controllers/authController')
 const productosCtrl = require('../controllers/productosController')
