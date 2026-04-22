@@ -114,3 +114,108 @@ router.post('/ventas', verificarToken, async (req, res) => {
 })
 
 module.exports = router
+
+// ─── REPORTES ─────────────────────────────────────────────────
+router.get('/reportes/servicios', verificarToken, async (req, res) => {
+    try {
+        const { desde, hasta, tipo } = req.query
+        const filtroFecha = desde && hasta ? {
+            gte: new Date(desde),
+            lte: new Date(new Date(hasta).setHours(23, 59, 59, 999))
+        } : undefined
+
+        const [vulcanizados, reencauches, reparaciones] = await Promise.all([
+            (!tipo || tipo === 'vulcanizado') ? prisma.vulcanizado.findMany({
+                where: filtroFecha ? { fecha_ingreso: filtroFecha } : {},
+                include: { cliente: { select: { nombre: true, apellido: true } }, usuario: { select: { nombre: true } } }
+            }) : [],
+            (!tipo || tipo === 'reencauche') ? prisma.reencauche.findMany({
+                where: filtroFecha ? { fecha_ingreso: filtroFecha } : {},
+                include: { cliente: { select: { nombre: true, apellido: true } }, detalles: true }
+            }) : [],
+            (!tipo || tipo === 'reparacion' || tipo === 'arreglo' || tipo === 'cambio') ? prisma.reparacion.findMany({
+                where: {
+                    ...(filtroFecha ? { fecha: filtroFecha } : {}),
+                    ...(tipo === 'arreglo' || tipo === 'cambio' ? { tipo_reparacion: tipo } : {})
+                },
+                include: { cliente: { select: { nombre: true, apellido: true } }, usuario: { select: { nombre: true } } }
+            }) : []
+        ])
+
+        const totalVulcanizados = vulcanizados.reduce((s, v) => s + parseFloat(v.saldo || 0) + parseFloat(v.abono || 0), 0)
+        const totalReencauches = reencauches.reduce((s, r) => s + parseFloat(r.saldo || 0) + parseFloat(r.abono || 0), 0)
+        const totalReparaciones = reparaciones.reduce((s, r) => s + parseFloat(r.costo || 0), 0)
+
+        res.json({
+            resumen: {
+                vulcanizados: { cantidad: vulcanizados.length, total: totalVulcanizados },
+                reencauches: { cantidad: reencauches.length, total: totalReencauches },
+                arreglos: { cantidad: reparaciones.filter(r => r.tipo_reparacion === 'arreglo').length, total: reparaciones.filter(r => r.tipo_reparacion === 'arreglo').reduce((s, r) => s + parseFloat(r.costo || 0), 0) },
+                cambios: { cantidad: reparaciones.filter(r => r.tipo_reparacion === 'cambio').length, total: reparaciones.filter(r => r.tipo_reparacion === 'cambio').reduce((s, r) => s + parseFloat(r.costo || 0), 0) },
+                total_general: totalVulcanizados + totalReencauches + totalReparaciones
+            },
+            detalle: {
+                vulcanizados,
+                reencauches,
+                reparaciones
+            }
+        })
+    } catch (err) {
+        console.error(err)
+        res.status(500).json({ error: 'Error al generar reporte de servicios' })
+    }
+})
+
+router.get('/reportes/insumos', verificarToken, async (req, res) => {
+    try {
+        const { desde, hasta } = req.query
+        const filtroFecha = desde && hasta ? {
+            gte: new Date(desde),
+            lte: new Date(new Date(hasta).setHours(23, 59, 59, 999))
+        } : undefined
+
+        const usos = await prisma.usoProductoServicio.findMany({
+            where: filtroFecha ? {
+                OR: [
+                    { reparacion: { fecha: filtroFecha } },
+                    { parchado: { fecha: filtroFecha } },
+                ]
+            } : {},
+            include: {
+                producto: { include: { categoria: true } },
+                reparacion: { select: { tipo_reparacion: true, fecha: true } },
+                parchado: { select: { fecha: true } }
+            }
+        })
+
+        // Agrupar por producto
+        const agrupado = {}
+        for (const uso of usos) {
+            const id = uso.id_producto
+            if (!agrupado[id]) {
+                agrupado[id] = {
+                    id_producto: id,
+                    nombre: uso.producto.nombre,
+                    categoria: uso.producto.categoria?.nombre,
+                    unidad_medida: uso.producto.unidad_medida,
+                    total_cantidad: 0,
+                    usos: []
+                }
+            }
+            agrupado[id].total_cantidad += uso.cantidad
+            agrupado[id].usos.push({
+                cantidad: uso.cantidad,
+                servicio: uso.reparacion ? `Reparación (${uso.reparacion.tipo_reparacion})` : 'Parchado',
+                fecha: uso.reparacion?.fecha || uso.parchado?.fecha
+            })
+        }
+
+        res.json({
+            insumos: Object.values(agrupado).sort((a, b) => b.total_cantidad - a.total_cantidad),
+            total_registros: usos.length
+        })
+    } catch (err) {
+        console.error(err)
+        res.status(500).json({ error: 'Error al generar reporte de insumos' })
+    }
+})
