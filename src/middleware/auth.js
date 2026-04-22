@@ -27,7 +27,7 @@ const verificarToken = async (req, res, next) => {
       const minutos = horaEcuador.getUTCMinutes()
       const horaDecimal = hora + minutos / 60
 
-      if (dia === 0 || horaDecimal < 7 || horaDecimal >= 6) {
+      if (dia === 0 || horaDecimal < 7 || horaDecimal >= 19) {
         return res.status(403).json({
           error: 'Acceso restringido',
           mensaje: dia === 0
