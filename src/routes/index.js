@@ -180,7 +180,7 @@ router.get('/reportes/insumos', verificarToken, soloAdmin, async (req, res) => {
             }
         })
 
-        // Filtrar por fecha si se proporcionan
+        // Filtrar por fecha
         const filtrados = usos.filter(uso => {
             if (!desde || !hasta) return true
             const fechaServicio = uso.reparacion?.fecha || uso.parchado?.fecha
@@ -220,5 +220,119 @@ router.get('/reportes/insumos', verificarToken, soloAdmin, async (req, res) => {
     } catch (err) {
         console.error(err)
         res.status(500).json({ error: 'Error al generar reporte de insumos' })
+    }
+})
+
+// ─── DASHBOARD ────────────────────────────────────────────────
+router.get('/dashboard', verificarToken, async (req, res) => {
+    try {
+        const hoyInicio = new Date()
+        hoyInicio.setHours(0, 0, 0, 0)
+        const hoyFin = new Date()
+        hoyFin.setHours(23, 59, 59, 999)
+
+        const mesInicio = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+
+        const [
+            // Totales generales
+            totalClientes,
+            totalNeumaticos,
+            totalUsuarios,
+            // Servicios de hoy
+            vulcanizadosHoy,
+            reencauchesHoy,
+            reparacionesHoy,
+            // Servicios del mes
+            vulcanizadosMes,
+            reencauchesMes,
+            reparacionesMes,
+            // Pendientes
+            vulcanizadosPendientes,
+            reencauchesPendientes,
+            // Alertas stock
+            alertasStock,
+            // Últimas reparaciones
+            ultimasReparaciones,
+            // Últimos vulcanizados
+            ultimosVulcanizados,
+        ] = await Promise.all([
+            prisma.cliente.count(),
+            prisma.neumatico.count({ where: { tipo_registro: 'taller' } }),
+            prisma.usuario.count({ where: { estado: true } }),
+
+            prisma.vulcanizado.findMany({ where: { fecha_ingreso: { gte: hoyInicio, lte: hoyFin } } }),
+            prisma.reencauche.findMany({ where: { fecha_ingreso: { gte: hoyInicio, lte: hoyFin } } }),
+            prisma.reparacion.findMany({ where: { fecha: { gte: hoyInicio, lte: hoyFin } } }),
+
+            prisma.vulcanizado.findMany({ where: { fecha_ingreso: { gte: mesInicio } } }),
+            prisma.reencauche.findMany({ where: { fecha_ingreso: { gte: mesInicio } } }),
+            prisma.reparacion.findMany({ where: { fecha: { gte: mesInicio } } }),
+
+            prisma.vulcanizado.count({ where: { estado: { in: ['pendiente', 'listo'] } } }),
+            prisma.reencauche.count({ where: { estado: { in: ['pendiente', 'en_proceso', 'listo'] } } }),
+
+            prisma.producto.findMany({
+                where: { estado: true },
+                select: { id_producto: true, nombre: true, stock: true, stock_minimo: true }
+            }),
+
+            prisma.reparacion.findMany({
+                take: 5,
+                orderBy: { fecha: 'desc' },
+                include: { cliente: { select: { nombre: true, apellido: true } } }
+            }),
+
+            prisma.vulcanizado.findMany({
+                take: 5,
+                orderBy: { fecha_ingreso: 'desc' },
+                include: { cliente: { select: { nombre: true, apellido: true } } }
+            }),
+        ])
+
+        const ingresoHoy =
+            vulcanizadosHoy.reduce((s, v) => s + parseFloat(v.abono || 0), 0) +
+            reencauchesHoy.reduce((s, r) => s + parseFloat(r.abono || 0), 0) +
+            reparacionesHoy.reduce((s, r) => s + parseFloat(r.costo || 0), 0)
+
+        const ingresoMes =
+            vulcanizadosMes.reduce((s, v) => s + parseFloat(v.abono || 0), 0) +
+            reencauchesMes.reduce((s, r) => s + parseFloat(r.abono || 0), 0) +
+            reparacionesMes.reduce((s, r) => s + parseFloat(r.costo || 0), 0)
+
+        const productosEnAlerta = alertasStock.filter(p => p.stock <= p.stock_minimo)
+
+        res.json({
+            hoy: {
+                servicios: vulcanizadosHoy.length + reencauchesHoy.length + reparacionesHoy.length,
+                vulcanizados: vulcanizadosHoy.length,
+                reencauches: reencauchesHoy.length,
+                reparaciones: reparacionesHoy.length,
+                ingreso: ingresoHoy,
+            },
+            mes: {
+                servicios: vulcanizadosMes.length + reencauchesMes.length + reparacionesMes.length,
+                vulcanizados: vulcanizadosMes.length,
+                reencauches: reencauchesMes.length,
+                reparaciones: reparacionesMes.length,
+                ingreso: ingresoMes,
+            },
+            pendientes: {
+                vulcanizados: vulcanizadosPendientes,
+                reencauches: reencauchesPendientes,
+                total: vulcanizadosPendientes + reencauchesPendientes,
+            },
+            generales: {
+                clientes: totalClientes,
+                neumaticos: totalNeumaticos,
+                usuarios: totalUsuarios,
+                alertasStock: productosEnAlerta.length,
+            },
+            alertasStock: productosEnAlerta,
+            ultimasReparaciones,
+            ultimosVulcanizados,
+        })
+    } catch (err) {
+        console.error(err)
+        res.status(500).json({ error: 'Error al obtener datos del dashboard' })
     }
 })
