@@ -18,7 +18,7 @@ const verificarToken = async (req, res, next) => {
     }
     req.usuario = { id: usuario.id_usuario, rol: usuario.rol.nombre }
 
-    // ─── Verificar horario laboral para técnicos ───────────────
+    // Solo aplica a técnicos — administradores siempre tienen acceso
     if (usuario.rol.nombre !== 'administrador') {
       const ahora = new Date()
       const horaEcuador = new Date(ahora.getTime() - (5 * 60 * 60 * 1000))
@@ -38,7 +38,6 @@ const verificarToken = async (req, res, next) => {
         })
       }
     }
-    // ──────────────────────────────────────────────────────────
 
     next()
   } catch (err) {
