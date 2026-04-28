@@ -170,6 +170,15 @@ model Neumatico {
   @@map("neumaticos")
 }
 
+model MarcaNeumatico {
+  id_marca       Int      @id @default(autoincrement())
+  nombre         String   @unique @db.VarChar(100)
+  activo         Boolean  @default(true)
+  fecha_creacion DateTime @default(now())
+
+  @@map("marcas_neumatico")
+}
+
 // =========================
 // HISTORIAL DEL NEUMÁTICO
 // =========================

@@ -233,6 +233,33 @@ router.put('/vehiculos/:id', verificarToken, async (req, res) => {
     }
 })
 
+// ─── MARCAS NEUMÁTICO ─────────────────────────────────────────
+router.get('/marcas', verificarToken, async (req, res) => {
+    try {
+        const marcas = await prisma.marcaNeumatico.findMany({
+            where: { activo: true },
+            orderBy: { nombre: 'asc' }
+        })
+        res.json(marcas.map(m => m.nombre))
+    } catch (err) {
+        res.status(500).json({ error: 'Error al obtener marcas' })
+    }
+})
+
+router.post('/marcas', verificarToken, async (req, res) => {
+    try {
+        const { nombre } = req.body
+        if (!nombre?.trim()) return res.status(400).json({ error: 'Nombre requerido' })
+        const marca = await prisma.marcaNeumatico.upsert({
+            where: { nombre: nombre.trim() },
+            update: { activo: true },
+            create: { nombre: nombre.trim() }
+        })
+        res.json(marca)
+    } catch (err) {
+        res.status(500).json({ error: 'Error al guardar marca' })
+    }
+})
 // ─── REPORTES ─────────────────────────────────────────────────
 
 router.get('/reportes/servicios', verificarToken, soloAdmin, async (req, res) => {
