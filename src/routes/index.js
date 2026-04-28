@@ -24,15 +24,82 @@ router.put('/productos/:id', verificarToken, soloAdmin, productosCtrl.actualizar
 router.post('/productos/:id/movimiento', verificarToken, productosCtrl.registrarMovimiento)
 router.get('/productos/:id/movimientos', verificarToken, productosCtrl.historialMovimientos)
 
+// Eliminar/desactivar insumo
+router.delete('/productos/:id', verificarToken, soloAdmin, async (req, res) => {
+    try {
+        const id = parseInt(req.params.id)
+
+        // Verificar si tiene movimientos o usos en servicios
+        const [movimientos, usos] = await Promise.all([
+            prisma.movimientoInventario.count({ where: { id_producto: id } }),
+            prisma.usoProductoServicio.count({ where: { id_producto: id } })
+        ])
+
+        if (movimientos > 0 || usos > 0) {
+            // Soft delete — desactivar
+            await prisma.producto.update({
+                where: { id_producto: id },
+                data: { estado: false }
+            })
+            return res.json({ mensaje: 'Insumo desactivado correctamente (tiene historial asociado)' })
+        }
+
+        // Hard delete — eliminar permanentemente
+        await prisma.producto.delete({ where: { id_producto: id } })
+        res.json({ mensaje: 'Insumo eliminado correctamente' })
+    } catch (err) {
+        console.error(err)
+        res.status(500).json({ error: 'Error al eliminar insumo' })
+    }
+})
+
 // ─── NEUMÁTICOS ───────────────────────────────────────────────
 // Ruta pública para escaneo QR (sin autenticación)
 router.get('/qr/:codigo', neumaticosCtrl.hojaDeVida)
-
 router.get('/neumaticos', verificarToken, neumaticosCtrl.listar)
 router.get('/neumaticos/:id', verificarToken, neumaticosCtrl.obtener)
 router.get('/neumaticos/:id/qr-imagen', verificarToken, neumaticosCtrl.obtenerQRImagen)
 router.post('/neumaticos/taller', verificarToken, neumaticosCtrl.crearTaller)
 router.post('/neumaticos/venta', verificarToken, soloAdmin, neumaticosCtrl.crearVenta)
+router.delete('/neumaticos/:id', verificarToken, soloAdmin, async (req, res) => {
+    try {
+        const id = parseInt(req.params.id)
+
+        const [historial, reparaciones, vulcanizados] = await Promise.all([
+            prisma.historialNeumatico.count({ where: { id_neumatico: id } }),
+            prisma.reparacion.count({ where: { id_neumatico: id } }),
+            prisma.detalleVulcanizado.count({ where: { id_neumatico: id } })
+        ])
+
+        if (historial > 0 || reparaciones > 0 || vulcanizados > 0) {
+            await prisma.neumatico.update({
+                where: { id_neumatico: id },
+                data: { estado: 'inactivo' }
+            })
+            return res.json({ mensaje: 'Neumático desactivado (tiene servicios asociados)' })
+        }
+
+        await prisma.neumatico.delete({ where: { id_neumatico: id } })
+        res.json({ mensaje: 'Neumático eliminado correctamente' })
+    } catch (err) {
+        console.error(err)
+        res.status(500).json({ error: 'Error al eliminar neumático' })
+    }
+})
+
+// Actualizar neumático de venta
+router.put('/neumaticos/:id', verificarToken, async (req, res) => {
+    try {
+        const { marca, medida, dot, precio, precio_compra } = req.body
+        const neu = await prisma.neumatico.update({
+            where: { id_neumatico: parseInt(req.params.id) },
+            data: { marca, medida, dot, precio, precio_compra }
+        })
+        res.json(neu)
+    } catch (err) {
+        res.status(500).json({ error: 'Error al actualizar neumático' })
+    }
+})
 
 // ─── CLIENTES ─────────────────────────────────────────────────
 router.get('/clientes', verificarToken, clientes.listar)
@@ -113,8 +180,6 @@ router.post('/ventas', verificarToken, async (req, res) => {
         res.status(500).json({ error: 'Error al registrar venta' })
     }
 })
-
-module.exports = router
 
 // ─── VEHÍCULOS ────────────────────────────────────────────────
 router.get('/clientes/:id/vehiculos', verificarToken, async (req, res) => {
@@ -389,3 +454,5 @@ router.get('/dashboard', verificarToken, async (req, res) => {
         res.status(500).json({ error: 'Error al obtener datos del dashboard' })
     }
 })
+
+module.exports = router

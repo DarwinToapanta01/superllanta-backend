@@ -156,6 +156,7 @@ model Neumatico {
   fecha_registro DateTime @default(now())
   id_vehiculo     Int?
   vehiculo        Vehiculo?    @relation(fields: [id_vehiculo], references: [id_vehiculo])
+  precio_compra  Decimal? @db.Decimal(10, 2)
 
   cliente                  Cliente?              @relation(fields: [id_cliente], references: [id_cliente])
   historial                HistorialNeumatico[]
@@ -380,6 +381,7 @@ model Venta {
   id_usuario Int?
   fecha      DateTime @default(now())
   total      Decimal? @db.Decimal(10, 2)
+  metodo_pago  String?  @default("Efectivo") @db.VarChar(30)
 
   cliente  Cliente?      @relation(fields: [id_cliente], references: [id_cliente])
   usuario  Usuario?      @relation(fields: [id_usuario], references: [id_usuario])
