@@ -324,11 +324,11 @@ const reparaciones = {
       if (id_neumatico_final) {
         await prisma.historialNeumatico.create({
           data: {
-            id_neumatico: detalle.id_neumatico,
+            id_neumatico: id_neumatico_final,
             id_usuario: req.usuario.id,
-            tipo_servicio: 'vulcanizado',
+            tipo_servicio: tipo_reparacion === 'arreglo' ? 'reparacion' : 'cambio',
             descripcion: [
-              detalle.descripcion || 'Ingresado a vulcanizado',
+              descripcion || `${tipo_reparacion} registrado`,
               placa_vehiculo ? `Vehículo: ${placa_vehiculo}` : null,
               chofer_servicio ? `Chofer: ${chofer_servicio}` : null,
             ].filter(Boolean).join(' · ')
