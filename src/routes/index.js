@@ -116,6 +116,58 @@ router.post('/ventas', verificarToken, async (req, res) => {
 
 module.exports = router
 
+// ─── VEHÍCULOS ────────────────────────────────────────────────
+router.get('/clientes/:id/vehiculos', verificarToken, async (req, res) => {
+    try {
+        const vehiculos = await prisma.vehiculo.findMany({
+            where: {
+                id_cliente: parseInt(req.params.id),
+                activo: true
+            },
+            orderBy: { fecha_registro: 'desc' }
+        })
+        res.json(vehiculos)
+    } catch (err) {
+        res.status(500).json({ error: 'Error al obtener vehículos' })
+    }
+})
+
+router.post('/clientes/:id/vehiculos', verificarToken, async (req, res) => {
+    try {
+        const { placa, tipo_vehiculo, chofer } = req.body
+        if (!placa || !tipo_vehiculo) {
+            return res.status(400).json({ error: 'Placa y tipo de vehículo son requeridos' })
+        }
+        const vehiculo = await prisma.vehiculo.create({
+            data: {
+                id_cliente: parseInt(req.params.id),
+                placa: placa.toUpperCase().trim(),
+                tipo_vehiculo,
+                chofer: chofer || null
+            }
+        })
+        res.status(201).json(vehiculo)
+    } catch (err) {
+        if (err.code === 'P2002') {
+            return res.status(400).json({ error: 'Ya existe un vehículo con esa placa' })
+        }
+        res.status(500).json({ error: 'Error al registrar vehículo' })
+    }
+})
+
+router.put('/vehiculos/:id', verificarToken, async (req, res) => {
+    try {
+        const { placa, tipo_vehiculo, chofer, activo } = req.body
+        const vehiculo = await prisma.vehiculo.update({
+            where: { id_vehiculo: parseInt(req.params.id) },
+            data: { placa: placa?.toUpperCase().trim(), tipo_vehiculo, chofer, activo }
+        })
+        res.json(vehiculo)
+    } catch (err) {
+        res.status(500).json({ error: 'Error al actualizar vehículo' })
+    }
+})
+
 // ─── REPORTES ─────────────────────────────────────────────────
 
 router.get('/reportes/servicios', verificarToken, soloAdmin, async (req, res) => {

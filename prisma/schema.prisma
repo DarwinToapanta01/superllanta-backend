@@ -54,21 +54,38 @@ model Usuario {
 // =========================
 
 model Cliente {
-  id_cliente     Int       @id @default(autoincrement())
-  nombre         String    @db.VarChar(100)
-  apellido       String?   @db.VarChar(100)
-  telefono       String?   @db.VarChar(20)
-  cedula         String?   @unique @db.VarChar(20)
-  direccion      String?   @db.VarChar(255)
-  fecha_registro DateTime  @default(now())
-
-  neumaticos   Neumatico[]
-  vulcanizados Vulcanizado[]
-  reencauches  Reencauche[]
-  reparaciones Reparacion[]
-  ventas       Venta[]
-
+  id_cliente      Int          @id @default(autoincrement())
+  nombre          String       @db.VarChar(100)
+  apellido        String?      @db.VarChar(100)
+  telefono        String?      @db.VarChar(20)
+  cedula          String?      @unique @db.VarChar(20)
+  direccion       String?      @db.VarChar(255)
+  tipo_cliente    String       @default("individual") @db.VarChar(20)
+  nombre_empresa  String?      @db.VarChar(150)
+  fecha_registro  DateTime     @default(now())
+  vehiculos       Vehiculo[]
+  neumaticos      Neumatico[]
+  vulcanizados    Vulcanizado[]
+  reencauches     Reencauche[]
+  reparaciones    Reparacion[]
+  ventas          Venta[]
   @@map("clientes")
+}
+
+model Vehiculo {
+  id_vehiculo     Int          @id @default(autoincrement())
+  id_cliente      Int
+  placa           String       @unique @db.VarChar(20)
+  tipo_vehiculo   String       @db.VarChar(30)
+  chofer          String?      @db.VarChar(150)
+  activo          Boolean      @default(true)
+  fecha_registro  DateTime     @default(now())
+  cliente         Cliente      @relation(fields: [id_cliente], references: [id_cliente])
+  neumaticos      Neumatico[]
+  vulcanizados    Vulcanizado[]
+  reparaciones    Reparacion[]
+  reencauches     Reencauche[]
+  @@map("vehiculos")
 }
 
 // =========================
@@ -137,6 +154,8 @@ model Neumatico {
   estado         String?  @default("activo") @db.VarChar(30)
   precio         Decimal? @db.Decimal(10, 2)
   fecha_registro DateTime @default(now())
+  id_vehiculo     Int?
+  vehiculo        Vehiculo?    @relation(fields: [id_vehiculo], references: [id_vehiculo])
 
   cliente                  Cliente?              @relation(fields: [id_cliente], references: [id_cliente])
   historial                HistorialNeumatico[]
@@ -203,6 +222,8 @@ model Vulcanizado {
   saldo                  Decimal  @default(0) @db.Decimal(10, 2)
   estado                 String   @default("pendiente") @db.VarChar(20)
   observaciones          String?
+  id_vehiculo     Int?
+  vehiculo        Vehiculo?    @relation(fields: [id_vehiculo], references: [id_vehiculo])
 
   cliente  Cliente              @relation(fields: [id_cliente], references: [id_cliente])
   usuario  Usuario?             @relation(fields: [id_usuario], references: [id_usuario])
@@ -244,6 +265,8 @@ model Reencauche {
   saldo                  Decimal  @default(0) @db.Decimal(10, 2)
   estado                 String   @default("pendiente") @db.VarChar(20)
   observaciones          String?
+  id_vehiculo     Int?
+  vehiculo        Vehiculo?    @relation(fields: [id_vehiculo], references: [id_vehiculo])
 
   cliente  Cliente             @relation(fields: [id_cliente], references: [id_cliente])
   usuario  Usuario?            @relation(fields: [id_usuario], references: [id_usuario])
@@ -287,6 +310,8 @@ model Reparacion {
   costo            Decimal  @default(0) @db.Decimal(10, 2)
   observaciones    String?
   fecha            DateTime @default(now())
+  id_vehiculo     Int?
+  vehiculo        Vehiculo?    @relation(fields: [id_vehiculo], references: [id_vehiculo])
 
   cliente       Cliente                  @relation(fields: [id_cliente], references: [id_cliente])
   usuario       Usuario?                 @relation(fields: [id_usuario], references: [id_usuario])
