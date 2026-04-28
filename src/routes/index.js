@@ -150,13 +150,14 @@ router.patch('/usuarios/:id/desactivar', verificarToken, soloAdmin, usuarios.des
 // ─── VENTAS ───────────────────────────────────────────────────
 router.post('/ventas', verificarToken, async (req, res) => {
     try {
-        const { id_cliente, id_neumatico, precio } = req.body
+        const { id_cliente, id_neumatico, precio, metodo_pago } = req.body
 
         const venta = await prisma.venta.create({
             data: {
                 id_cliente: id_cliente || null,
                 id_usuario: req.usuario.id,
                 total: precio,
+                metodo_pago: metodo_pago || 'Efectivo',  // ← agregar
                 detalles: {
                     create: [{ id_neumatico, precio }]
                 }
@@ -164,7 +165,6 @@ router.post('/ventas', verificarToken, async (req, res) => {
             include: { detalles: true }
         })
 
-        // Marcar neumático como vendido
         await prisma.neumatico.update({
             where: { id_neumatico },
             data: { estado: 'vendido' }
@@ -479,6 +479,124 @@ router.get('/dashboard', verificarToken, async (req, res) => {
     } catch (err) {
         console.error(err)
         res.status(500).json({ error: 'Error al obtener datos del dashboard' })
+    }
+})
+
+// ─── HISTORIAL DE VENTAS POR CLIENTE ─────────────────────────
+router.get('/ventas', verificarToken, async (req, res) => {
+    try {
+        const { id_cliente, desde, hasta } = req.query
+
+        const filtro = {}
+        if (id_cliente) filtro.id_cliente = parseInt(id_cliente)
+        if (desde && hasta) {
+            filtro.fecha = {
+                gte: new Date(desde + 'T00:00:00.000-05:00'),
+                lte: new Date(hasta + 'T23:59:59.999-05:00')
+            }
+        }
+
+        const ventas = await prisma.venta.findMany({
+            where: filtro,
+            orderBy: { fecha: 'desc' },
+            include: {
+                cliente: { select: { nombre: true, apellido: true, nombre_empresa: true, tipo_cliente: true } },
+                usuario: { select: { nombre: true } },
+                detalles: {
+                    include: {
+                        neumatico: { select: { marca: true, medida: true, dot: true, estado: true, codigo_qr: true } }
+                    }
+                }
+            }
+        })
+        res.json(ventas)
+    } catch (err) {
+        console.error(err)
+        res.status(500).json({ error: 'Error al obtener ventas' })
+    }
+})
+
+// ─── TENDENCIAS PARA GRÁFICAS ─────────────────────────────────
+router.get('/dashboard/tendencias', verificarToken, async (req, res) => {
+    try {
+        const { dias = 30 } = req.query
+        const diasNum = parseInt(dias)
+
+        const inicio = new Date()
+        inicio.setDate(inicio.getDate() - diasNum)
+        inicio.setHours(0, 0, 0, 0)
+
+        const [vulcanizados, reencauches, reparaciones, ventas] = await Promise.all([
+            prisma.vulcanizado.findMany({
+                where: { fecha_ingreso: { gte: inicio } },
+                select: { fecha_ingreso: true, abono: true, saldo: true }
+            }),
+            prisma.reencauche.findMany({
+                where: { fecha_ingreso: { gte: inicio } },
+                select: { fecha_ingreso: true, abono: true, saldo: true }
+            }),
+            prisma.reparacion.findMany({
+                where: { fecha: { gte: inicio } },
+                select: { fecha: true, costo: true, tipo_reparacion: true }
+            }),
+            prisma.venta.findMany({
+                where: { fecha: { gte: inicio } },
+                select: { fecha: true, total: true }
+            })
+        ])
+
+        // Agrupar por día
+        const dias_data = {}
+        for (let i = 0; i < diasNum; i++) {
+            const d = new Date()
+            d.setDate(d.getDate() - (diasNum - 1 - i))
+            const key = d.toISOString().split('T')[0]
+            dias_data[key] = {
+                fecha: key,
+                vulcanizados: 0,
+                reencauches: 0,
+                reparaciones: 0,
+                ventas: 0,
+                ingreso: 0
+            }
+        }
+
+        vulcanizados.forEach(v => {
+            const key = new Date(v.fecha_ingreso).toISOString().split('T')[0]
+            if (dias_data[key]) {
+                dias_data[key].vulcanizados++
+                dias_data[key].ingreso += parseFloat(v.abono || 0)
+            }
+        })
+
+        reencauches.forEach(r => {
+            const key = new Date(r.fecha_ingreso).toISOString().split('T')[0]
+            if (dias_data[key]) {
+                dias_data[key].reencauches++
+                dias_data[key].ingreso += parseFloat(r.abono || 0)
+            }
+        })
+
+        reparaciones.forEach(r => {
+            const key = new Date(r.fecha).toISOString().split('T')[0]
+            if (dias_data[key]) {
+                dias_data[key].reparaciones++
+                dias_data[key].ingreso += parseFloat(r.costo || 0)
+            }
+        })
+
+        ventas.forEach(v => {
+            const key = new Date(v.fecha).toISOString().split('T')[0]
+            if (dias_data[key]) {
+                dias_data[key].ventas++
+                dias_data[key].ingreso += parseFloat(v.total || 0)
+            }
+        })
+
+        res.json(Object.values(dias_data))
+    } catch (err) {
+        console.error(err)
+        res.status(500).json({ error: 'Error al obtener tendencias' })
     }
 })
 
