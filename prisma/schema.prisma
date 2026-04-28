@@ -224,6 +224,8 @@ model Vulcanizado {
   observaciones          String?
   id_vehiculo     Int?
   vehiculo        Vehiculo?    @relation(fields: [id_vehiculo], references: [id_vehiculo])
+  chofer_servicio  String?    @db.VarChar(150)
+  placa_vehiculo   String?    @db.VarChar(20) 
 
   cliente  Cliente              @relation(fields: [id_cliente], references: [id_cliente])
   usuario  Usuario?             @relation(fields: [id_usuario], references: [id_usuario])
@@ -267,6 +269,8 @@ model Reencauche {
   observaciones          String?
   id_vehiculo     Int?
   vehiculo        Vehiculo?    @relation(fields: [id_vehiculo], references: [id_vehiculo])
+  chofer_servicio  String?    @db.VarChar(150)
+  placa_vehiculo   String?    @db.VarChar(20) 
 
   cliente  Cliente             @relation(fields: [id_cliente], references: [id_cliente])
   usuario  Usuario?            @relation(fields: [id_usuario], references: [id_usuario])
@@ -312,6 +316,8 @@ model Reparacion {
   fecha            DateTime @default(now())
   id_vehiculo     Int?
   vehiculo        Vehiculo?    @relation(fields: [id_vehiculo], references: [id_vehiculo])
+  chofer_servicio  String?    @db.VarChar(150)
+  placa_vehiculo   String?    @db.VarChar(20) 
 
   cliente       Cliente                  @relation(fields: [id_cliente], references: [id_cliente])
   usuario       Usuario?                 @relation(fields: [id_usuario], references: [id_usuario])

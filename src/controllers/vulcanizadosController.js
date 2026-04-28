@@ -42,10 +42,23 @@ const obtener = async (req, res) => {
 // POST /api/vulcanizados - Crear nueva orden
 const crear = async (req, res) => {
   try {
-    const { id_cliente, fecha_entrega_estimada, abono, observaciones, detalles } = req.body
+    const { id_cliente, id_vehiculo, fecha_entrega_estimada, abono, observaciones, detalles } = req.body
 
     if (!id_cliente) return res.status(400).json({ error: 'El cliente es requerido' })
-    if (!detalles || detalles.length === 0) return res.status(400).json({ error: 'Debe ingresar al menos un neumático' })
+    if (!detalles || detalles.length === 0) return res.status(400).json({ error: 'Debe agregar al menos un neumático' })
+
+    // Obtener datos del vehículo si viene uno seleccionado
+    let chofer_servicio = null
+    let placa_vehiculo = null
+    if (id_vehiculo) {
+      const vehiculo = await prisma.vehiculo.findUnique({
+        where: { id_vehiculo: parseInt(id_vehiculo) }
+      })
+      if (vehiculo) {
+        chofer_servicio = vehiculo.chofer || null
+        placa_vehiculo = vehiculo.placa || null
+      }
+    }
 
     const total = detalles.reduce((sum, d) => sum + (parseFloat(d.precio) || 0), 0)
     const saldo = total - (parseFloat(abono) || 0)
@@ -106,7 +119,9 @@ const crear = async (req, res) => {
       data: {
         id_cliente,
         id_usuario: req.usuario.id,
-        id_vehiculo: req.body.id_vehiculo || null,
+        id_vehiculo: id_vehiculo || null,
+        chofer_servicio,      // ← nuevo
+        placa_vehiculo,       // ← nuevo
         fecha_entrega_estimada: fecha_entrega_estimada ? new Date(fecha_entrega_estimada) : null,
         abono: abono || 0,
         saldo: saldo >= 0 ? saldo : 0,
@@ -125,7 +140,11 @@ const crear = async (req, res) => {
             id_neumatico: detalle.id_neumatico,
             id_usuario: req.usuario.id,
             tipo_servicio: 'vulcanizado',
-            descripcion: `Ingresado a vulcanizado. ${detalle.descripcion || ''}`
+            descripcion: [
+              detalle.descripcion || 'Ingresado a vulcanizado',
+              placa_vehiculo ? `Vehículo: ${placa_vehiculo}` : null,
+              chofer_servicio ? `Chofer: ${chofer_servicio}` : null,
+            ].filter(Boolean).join(' · ')
           }
         })
       }

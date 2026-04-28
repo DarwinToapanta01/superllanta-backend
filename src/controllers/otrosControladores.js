@@ -256,12 +256,26 @@ const reparaciones = {
         }
       }
 
+      let chofer_servicio = null
+      let placa_vehiculo = null
+      if (req.body.id_vehiculo) {
+        const vehiculo = await prisma.vehiculo.findUnique({
+          where: { id_vehiculo: parseInt(req.body.id_vehiculo) }
+        })
+        if (vehiculo) {
+          chofer_servicio = vehiculo.chofer || null
+          placa_vehiculo = vehiculo.placa || null
+        }
+      }
+
       const reparacion = await prisma.reparacion.create({
         data: {
           id_cliente,
           id_usuario: req.usuario.id,
           id_neumatico: id_neumatico_final,
-          id_vehiculo: req.body.id_vehiculo || null,  // ← agregar
+          id_vehiculo: req.body.id_vehiculo || null,
+          chofer_servicio,
+          placa_vehiculo,
           tipo_reparacion,
           marca_neumatico,
           medida_neumatico,
@@ -271,7 +285,6 @@ const reparaciones = {
           observaciones
         }
       })
-
 
       // Registrar insumos y descontar stock
       if (insumos && insumos.length > 0) {
@@ -311,10 +324,14 @@ const reparaciones = {
       if (id_neumatico_final) {
         await prisma.historialNeumatico.create({
           data: {
-            id_neumatico: id_neumatico_final,
+            id_neumatico: detalle.id_neumatico,
             id_usuario: req.usuario.id,
-            tipo_servicio: tipo_reparacion === 'arreglo' ? 'reparacion' : 'cambio',
-            descripcion: descripcion || `${tipo_reparacion} registrado`
+            tipo_servicio: 'vulcanizado',
+            descripcion: [
+              detalle.descripcion || 'Ingresado a vulcanizado',
+              placa_vehiculo ? `Vehículo: ${placa_vehiculo}` : null,
+              chofer_servicio ? `Chofer: ${chofer_servicio}` : null,
+            ].filter(Boolean).join(' · ')
           }
         })
       }
@@ -370,10 +387,24 @@ const reencauches = {
       const total = detalles.reduce((sum, d) => sum + (parseFloat(d.precio) || 0), 0)
       const saldo = total - (parseFloat(abono) || 0)
 
+      let chofer_servicio = null
+      let placa_vehiculo = null
+      if (id_vehiculo) {
+        const vehiculo = await prisma.vehiculo.findUnique({
+          where: { id_vehiculo: parseInt(id_vehiculo) }
+        })
+        if (vehiculo) {
+          chofer_servicio = vehiculo.chofer || null
+          placa_vehiculo = vehiculo.placa || null
+        }
+      }
+
       const reencauche = await prisma.reencauche.create({
         data: {
           id_cliente, id_usuario: req.usuario.id,
           id_vehiculo: req.body.id_vehiculo || null,
+          chofer_servicio,
+          placa_vehiculo,
           fecha_entrega_estimada: fecha_entrega_estimada ? new Date(fecha_entrega_estimada) : null,
           abono: abono || 0, saldo: saldo >= 0 ? saldo : 0,
           estado: 'pendiente', observaciones,
