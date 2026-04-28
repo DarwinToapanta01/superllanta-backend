@@ -106,6 +106,7 @@ const crear = async (req, res) => {
       data: {
         id_cliente,
         id_usuario: req.usuario.id,
+        id_vehiculo: req.body.id_vehiculo || null,
         fecha_entrega_estimada: fecha_entrega_estimada ? new Date(fecha_entrega_estimada) : null,
         abono: abono || 0,
         saldo: saldo >= 0 ? saldo : 0,

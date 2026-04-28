@@ -45,9 +45,19 @@ const clientes = {
 
   crear: async (req, res) => {
     try {
-      const { nombre, apellido, telefono, cedula, direccion } = req.body
+      const { nombre, apellido, telefono, cedula, direccion, tipo_cliente, nombre_empresa } = req.body
       if (!nombre) return res.status(400).json({ error: 'El nombre es requerido' })
-      const cliente = await prisma.cliente.create({ data: { nombre, apellido, telefono, cedula, direccion } })
+      const cliente = await prisma.cliente.create({
+        data: {
+          nombre,
+          apellido,
+          telefono,
+          cedula,
+          direccion,
+          tipo_cliente: tipo_cliente || 'individual',
+          nombre_empresa: tipo_cliente === 'empresa' ? nombre_empresa : null
+        }
+      })
       res.status(201).json(cliente)
     } catch (err) {
       if (err.code === 'P2002') return res.status(400).json({ error: 'Ya existe un cliente con esa cédula' })
@@ -57,10 +67,18 @@ const clientes = {
 
   actualizar: async (req, res) => {
     try {
-      const { nombre, apellido, telefono, cedula, direccion } = req.body
+      const { nombre, apellido, telefono, cedula, direccion, tipo_cliente, nombre_empresa } = req.body
       const cliente = await prisma.cliente.update({
         where: { id_cliente: parseInt(req.params.id) },
-        data: { nombre, apellido, telefono, cedula, direccion }
+        data: {
+          nombre,
+          apellido,
+          telefono,
+          cedula,
+          direccion,
+          tipo_cliente: tipo_cliente || 'individual',
+          nombre_empresa: tipo_cliente === 'empresa' ? nombre_empresa : null
+        }
       })
       res.json(cliente)
     } catch (err) {
@@ -243,6 +261,7 @@ const reparaciones = {
           id_cliente,
           id_usuario: req.usuario.id,
           id_neumatico: id_neumatico_final,
+          id_vehiculo: req.body.id_vehiculo || null,  // ← agregar
           tipo_reparacion,
           marca_neumatico,
           medida_neumatico,
@@ -252,6 +271,7 @@ const reparaciones = {
           observaciones
         }
       })
+
 
       // Registrar insumos y descontar stock
       if (insumos && insumos.length > 0) {
@@ -353,6 +373,7 @@ const reencauches = {
       const reencauche = await prisma.reencauche.create({
         data: {
           id_cliente, id_usuario: req.usuario.id,
+          id_vehiculo: req.body.id_vehiculo || null,
           fecha_entrega_estimada: fecha_entrega_estimada ? new Date(fecha_entrega_estimada) : null,
           abono: abono || 0, saldo: saldo >= 0 ? saldo : 0,
           estado: 'pendiente', observaciones,
