@@ -31,4 +31,3 @@ npm run dev
 ## Credenciales por defecto
 - Email: admin@superllanta.com
 - Password: admin123
-- ⚠️ Cambiar en producción
